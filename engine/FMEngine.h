@@ -88,7 +88,7 @@ struct EnvADS
     // peakLevel is applied as a live multiplier each sample, so modulating
     // Operator::level mid-note immediately scales the output — matching
     // the Digitone behaviour where level is a live-modulatable parameter.
-    float process(float peakLevel);
+    float process();
 
     bool isIdle() const { return state == State::Idle; }
 
