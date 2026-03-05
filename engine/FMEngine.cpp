@@ -105,5 +105,90 @@ float EnvADSR::process()
 }
 
 
+Algorithm getAlgorithm(int index)
+{
+    Algorithm result;
+    
+    switch(index)
+    {
+        // modulationMatrix[target][source] = true  →  source modulates target
+
+        //   0: all carriers, no modulation          — pure additive
+        case 0:
+        //modulation matrix remains all zeros
+        result.carrierMask[0]=1;
+        result.carrierMask[1]=1;
+        result.carrierMask[2]=1;
+        result.carrierMask[3]=1;
+        
+        break;
+
+        //   1: 0→1→2→3★                            — full linear chain
+        case 1:
+        result.modulationMatrix[1][0] = 1;
+        result.modulationMatrix[2][1] = 1;
+        result.modulationMatrix[3][2] = 1;
+        result.carrierMask[3] = 1; 
+        break;
+
+        //   2: (0+1)→2→3★                          — two mods into chain
+        case 2:
+        result.modulationMatrix[2][0] = 1;
+        result.modulationMatrix[2][1] = 1;
+        result.modulationMatrix[3][2] = 1;
+        result.carrierMask[3] = 1;
+        break;
+
+        //   3: 0→1★,  2→3★                         — two independent FM pairs
+        case 3:
+        result.modulationMatrix[1][0] = 1;
+        result.modulationMatrix[3][2] = 1;
+        result.carrierMask[1] = 1;
+        result.carrierMask[3] = 1;
+        break;
+
+        //   4: (0+1+2)→3★                          — three mods on one carrier
+        case 4:
+        result.modulationMatrix[3][0] = 1;
+        result.modulationMatrix[3][1] = 1;
+        result.modulationMatrix[3][2] = 1;
+        result.carrierMask[3] = 1;
+        break;
+
+        //   5: 0→(1★+2★+3★)                        — one mod, three carriers
+        case 5:
+        result.modulationMatrix[1][0] = 1;
+        result.modulationMatrix[2][0] = 1;
+        result.modulationMatrix[3][0] = 1;
+        result.carrierMask[1] = 1;
+        result.carrierMask[2] = 1;
+        result.carrierMask[3] = 1;
+        break;
+        
+        //   6: 0→1→(2★+3★)                         — chain into two carriers
+        case 6:
+        result.modulationMatrix[1][0] = 1;
+        result.modulationMatrix[2][1] = 1;
+        result.modulationMatrix[3][1] = 1;
+        result.carrierMask[2] = 1;
+        result.carrierMask[3] = 1;
+        break;
+        //   7: 0[fb]→1→2★, 3★                      — feedback chain + free carrier
+        case 7:
+        result.modulationMatrix[1][0] = 1;
+        result.modulationMatrix[2][1] = 1;
+        result.carrierMask[2] = 1;
+        result.carrierMask[3] = 1;
+        break;
+        default:
+        result.carrierMask[3] = 1;
+        break;
+
+    }
+    return result;
+}
+
+
+
 
 
