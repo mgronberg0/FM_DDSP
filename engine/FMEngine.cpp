@@ -104,6 +104,10 @@ float EnvADSR::process()
     return currentLvl;
 }
 
+float Operator::effectiveFreq(float fundamentalHz) const
+{
+    return (fundamentalHz * ratio) * powf(2.0f,coarse/12.0f) *  powf(2.0,fine/1200.0f);
+}
 
 Algorithm getAlgorithm(int index)
 {
