@@ -192,7 +192,56 @@ Algorithm getAlgorithm(int index)
     return result;
 }
 
+float FMVoice::processSample()
+{
+    // Computes operators in order- assumes preset algorithms are acylcal
+    // except for self-feed back on op0
+    float opOutput[kNumOperators] = {};
+    float opPhaseMod[kNumOperators] = {};
+    float outputSample = 0.0f;
+    // Compute op0 feedback (hardcoded to be the feedback op)
+    opPhaseMod[0] = ops_[0].feedback*((feedbackBuf_[0]+feedbackBuf_[1])/2.0f);
 
+    int carrierCount = 0;
+    for (int opIdx = 0; opIdx<kNumOperators; opIdx++)
+    {
+        // solve incoming phase modulation
+        // TODO: use our a priori knowledge of routing to create 
+        // non-generalized modulation solution for less computation
+        for (int sourceIdx=0; sourceIdx<opIdx; sourceIdx++){
+            if (alg_.modulationMatrix[opIdx][sourceIdx] == true){
+                opPhaseMod[opIdx] += opOutput[sourceIdx];
+            }
+        }
+        opOutput[opIdx] = computeOperatorOutput(opIdx, opPhaseMod[opIdx]);
+        if (alg_.carrierMask[opIdx] == true){
+            carrierCount++;
+            outputSample += opOutput[opIdx];
+        }
+        phase_[opIdx] += (kTwoPi * (ops_[opIdx].effectiveFreq(fundamentalHz_) / Fs_));
+        phase_[opIdx] = fmodf(phase_[opIdx],kTwoPi);
+    }
+    
+    // push new value the feedback buffer
+    feedbackBuf_[0] = feedbackBuf_[1];
+    feedbackBuf_[1] = opOutput[0];
+
+    // advance ASDR VCA env with envADSR::process()
+    float amp = ampEnv_.process();
+
+    return carrierCount > 0 ? ((outputSample * amp * velocity_)  / carrierCount) : 0.0f;
+    
+
+}
+
+float FMVoice::computeOperatorOutput(int opIdx, float phaseModulation)
+{
+    // y(t) = A*sin(2Pi*fc*t + I*sin(2Pi*fm*t))
+    float opOutput = sinf(phase_[opIdx]+phaseModulation);
+    // advances operator level ADS env with envADS::process()
+    opOutput = opOutput * ops_[opIdx].env.process() * ops_[opIdx].level;
+    return opOutput;
+}
 
 
 
