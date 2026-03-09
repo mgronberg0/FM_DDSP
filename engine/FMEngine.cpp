@@ -298,4 +298,50 @@ bool FMVoice::isActive() const
     return true;
 }
 
+void VoiceAllocator::reset()
+{
+    for(int i = 0; i<kNumVoices; i++){
+        states_[i] = {};
+    }
+}
+
+void VoiceAllocator::tick()
+{
+    for(int i = 0; i<kNumVoices; i++){
+        if (states_[i].active) states_[i].age++;
+    }
+    // TODO: where do we signal to the VoiceAllocator that the voice is idle
+}
+
+int VoiceAllocator::allocate(float freqHz)
+{
+    int oldestIndex = 0;
+    int oldestAge = 0;
+    for(int i = 0; i<kNumVoices; i++){
+        // give up idle voices
+        if (states_[i].active==false){
+            states_[i].active = true;
+            states_[i].freqHz = freqHz;
+            states_[i].age = 0;
+            return i;
+        }
+        // give up same voice
+        if (states_[i].freqHz == freqHz){
+            states_[i].active = true;
+            states_[i].freqHz = freqHz;
+            states_[i].age = 0;
+            return i;
+        }
+        // give up oldest voice
+        if (states_[i].age>oldestAge){
+            oldestIndex = i;
+            oldestAge = states_[i].age;
+        }
+    }
+    states_[oldestIndex].active = true;
+    states_[oldestIndex].freqHz = freqHz;
+    states_[oldestIndex].age = 0;
+    return oldestIndex;
+}
+
 

@@ -327,9 +327,6 @@ public:
     // Prefers idle voices; steals the oldest active voice if all are busy.
     int allocate(float freqHz);
 
-    // Mark a voice as released. Voice stays active until ampEnv reaches idle.
-    void release(float freqHz);
-
     // Call each block to increment age counters
     void tick();
 
