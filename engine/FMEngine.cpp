@@ -243,5 +243,59 @@ float FMVoice::computeOperatorOutput(int opIdx, float phaseModulation)
     return opOutput;
 }
 
+void FMVoice::processBlock(float* buf, int numSamples)
+{
+    for (int i = 0; i<numSamples; i++){
+        buf[i] = processSample();
+    }
+}
+
+void FMVoice::setSampleRate(float Fs)
+{
+    Fs_ = Fs;
+    for (int i = 0; i< kNumOperators; i++){
+        ops_[i].env.setSampleRate(Fs);
+    }
+    ampEnv_.setSampleRate(Fs);
+}
+
+// Unpacks FMPatch object into the FMVoice
+void FMVoice::setPatch(const FMPatch& patch)
+{
+    ampEnv_ = patch.ampEnv;
+    algorithmIndex_ = patch.algorithmIndex;
+    alg_ = getAlgorithm(algorithmIndex_);
+    //TODO: where does pitchbend range get assigned
+    // = patch.pitchBendRange;
+    // = patch.name;
+    for (int i = 0; i<kNumOperators; i++){
+        ops_[i] = patch.ops[i];
+    }
+    // make sure all envelopes are using the patch Sample Rate
+    setSampleRate(Fs_);
+}
+
+void FMVoice::noteOn(float freqHz, float velocity)
+{
+    fundamentalHz_ = fm_clamp(freqHz, 10.0f, 15000.0f);
+    velocity_ = fm_clamp(velocity, 0.0f, 1.0f);
+    for (int i = 0; i<kNumOperators; i++){
+        ops_[i].env.noteOn();
+    }
+    ampEnv_.noteOn();
+}
+
+void FMVoice::noteOff()
+{
+    ampEnv_.noteOff();
+}
+
+bool FMVoice::isActive() const
+{
+    if (ampEnv_.state == EnvADSR::State::Idle){
+        return false;
+    }
+    return true;
+}
 
 

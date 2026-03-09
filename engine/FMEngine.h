@@ -297,7 +297,6 @@ private:
     float   phase_[kNumOperators] = {};  // current phase accumulator [0, 2π)
     float   feedbackBuf_[2]       = {};  // two-sample history for op0 feedback
 
-    EnvADS  opEnvs_[kNumOperators];      // per-operator modulation index envelopes
     EnvADSR ampEnv_;                     // voice-level VCA envelope
 
     // Patch state (copied in on noteOn / setPatch)
@@ -310,8 +309,8 @@ private:
     float Fs_            = 44100.0f;
 
     float computeOperatorOutput(int opIdx, float phaseModulation);
-    float semitonesToRatio(float semitones) const;
-    float centsToRatio(float cents)         const;
+    //float semitonesToRatio(float semitones) const;
+    //float centsToRatio(float cents)         const;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
