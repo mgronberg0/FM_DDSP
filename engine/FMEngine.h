@@ -325,7 +325,9 @@ public:
 
     // Returns index of voice to use for a new note.
     // Prefers idle voices; steals the oldest active voice if all are busy.
-    int allocate(float freqHz);
+    int allocate(int midiNote, float freqHz);
+    int findVoice(int midiNote);
+    void setInactive(int voiceIdx);
 
     // Call each block to increment age counters
     void tick();
@@ -338,6 +340,7 @@ private:
     struct VoiceState
     {
         bool  active = false;
+        int midiNote = 0;
         float freqHz = 0.0f;
         int   age    = 0;     // samples since noteOn, used for steal ordering
     };
@@ -367,12 +370,14 @@ public:
     void noteOff(int midiNote);
     void allNotesOff();
 
+   // TODO: Midi messages are interpreted per block. No sample adjustment or MidiBuffer applied
+
     // Render stereo output. outL and outR must be pre-allocated by caller.
     // Voices are distributed slightly across the stereo field.
-    void processBlock(float* outL, float* outR, int numSamples);
+    void processBlockStereo(float* outL, float* outR, int numSamples);
 
     // Convenience: render mono
-    void processBlockMono(float* out, int numSamples);
+    void processBlock(float* out, int numSamples);
 
     // Read back current patch (e.g. for plugin UI)
     const FMPatch& currentPatch() const { return patch_; }
@@ -383,8 +388,8 @@ private:
     FMPatch                         patch_;
     float                           Fs_ = 44100.0f;
 
-    // Mild stereo spread: returns pan [-1, 1] for a given voice index
-    float voicePan(int voiceIdx) const;
-
+    // Mild stereo spread: returns pan L [-1, 1] R for a given voice index
+    //float voicePan(int voiceIdx) const;
     static float midiNoteToFreq(int note);
+
 };

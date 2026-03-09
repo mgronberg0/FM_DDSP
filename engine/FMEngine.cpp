@@ -313,24 +313,20 @@ void VoiceAllocator::tick()
     // TODO: where do we signal to the VoiceAllocator that the voice is idle
 }
 
-int VoiceAllocator::allocate(float freqHz)
+int VoiceAllocator::allocate(int midiNote, float freqHz)
 {
     int oldestIndex = 0;
     int oldestAge = 0;
     for(int i = 0; i<kNumVoices; i++){
         // give up idle voices
         if (states_[i].active==false){
-            states_[i].active = true;
-            states_[i].freqHz = freqHz;
-            states_[i].age = 0;
-            return i;
+            oldestIndex = i;
+            break;
         }
         // give up same voice
-        if (states_[i].freqHz == freqHz){
-            states_[i].active = true;
-            states_[i].freqHz = freqHz;
-            states_[i].age = 0;
-            return i;
+        if (states_[i].midiNote == midiNote){
+            oldestIndex = i;
+            break;
         }
         // give up oldest voice
         if (states_[i].age>oldestAge){
@@ -339,9 +335,114 @@ int VoiceAllocator::allocate(float freqHz)
         }
     }
     states_[oldestIndex].active = true;
+    states_[oldestIndex].midiNote = midiNote;
     states_[oldestIndex].freqHz = freqHz;
     states_[oldestIndex].age = 0;
     return oldestIndex;
+}
+
+// returns index of the voice corresponding to the midi note or -1 if no midi note exists
+int VoiceAllocator::findVoice(int midiNote)
+{
+    for(int i = 0; i<kNumVoices; i++){
+        if (states_[i].midiNote == midiNote){
+            return i;
+        }
+    }
+    return -1;
+}
+
+void VoiceAllocator::setInactive(int voiceIdx)
+{
+    if (voiceIdx >=  0 && voiceIdx < kNumVoices){
+        states_[voiceIdx].active = false;
+    }
+}
+
+void FMEngine::setSampleRate(float Fs)
+{
+    Fs_ = Fs;
+    for (int i = 0; i < kNumVoices; i++){
+        voices_[i].setSampleRate(Fs);
+    }
+}
+
+void FMEngine::loadPatch(const FMPatch& patch)
+{
+    for (int i = 0; i<kNumVoices; i++){
+        voices_[i].setPatch(patch);
+    }
+}
+
+float FMEngine::midiNoteToFreq(int note)
+{
+    return 440.0f * powf(2.0f,((note - 69) / 12.0f));
+}
+
+void FMEngine::noteOn(int midiNote, int velocity)
+{
+    float freqHz = midiNoteToFreq(fm_clamp(midiNote,0,127));
+    float velocityScalar = fm_clamp((float)velocity / 127.0f, 0.0f, 1.0f);
+    int voiceIdx = allocator_.allocate(midiNote, freqHz);
+    voices_[voiceIdx].noteOn(freqHz, velocityScalar);
+}
+
+void FMEngine::noteOff(int midiNote)
+{
+    int voiceIdx = allocator_.findVoice(midiNote);
+    if(voiceIdx>=0) voices_[voiceIdx].noteOff();
+}
+
+void FMEngine::allNotesOff()
+{
+    allocator_.reset();
+    for(int i = 0; i<kNumVoices; i++){
+        voices_[i].noteOff();
+    }
+}
+
+void FMEngine::processBlockStereo(float* outL, float* outR, int numSamples)
+{
+    float curSamp = 0.0f;
+    float chanScalarL = 1.0f;
+    float chanScalarR = 1.0f;
+
+    allocator_.tick();
+    // Need to sum all voices
+    for (int n = 0; n<numSamples; n++){
+        outL[n] = 0.0f;
+        outR[n] = 0.0f;
+        for(int voiceIdx = 0; voiceIdx< kNumVoices; voiceIdx++){
+            // figure out voice scalars
+            if (voices_[voiceIdx].isActive()){
+                curSamp = voices_[voiceIdx].processSample();
+                outL[n] += curSamp*chanScalarL;
+                outR[n] += curSamp*chanScalarR;
+                if (voices_[voiceIdx].isIdle()){
+                    allocator_.setInactive(voiceIdx);
+                }
+            }
+        }
+    }
+}
+
+void FMEngine::processBlock(float* out, int numSamples)
+{
+    float curSamp = 0.0f;
+    allocator_.tick();
+    // Need to sum all voices
+    for (int n = 0; n<numSamples; n++){
+        out[n] = 0.0f;
+        for(int voiceIdx = 0; voiceIdx< kNumVoices; voiceIdx++){
+            if (voices_[voiceIdx].isActive()){
+                curSamp = voices_[voiceIdx].processSample();
+                out[n] += curSamp;
+                if (voices_[voiceIdx].isIdle()){
+                    allocator_.setInactive(voiceIdx);
+                }
+            }
+        }
+    }
 }
 
 
