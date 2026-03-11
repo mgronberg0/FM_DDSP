@@ -76,9 +76,9 @@ struct EnvADS
 
     State state      = State::Idle;
     float currentLvl = 0.0f;
-    float Fs_        = 44100.0f;
+    int Fs_        = 44100.0f;
 
-    void setSampleRate(float Fs) { Fs_ = Fs; }
+    void setSampleRate(int Fs) { Fs_ = Fs; }
 
     // Trigger note on. Envelope shape runs in normalised [0, 1] space
     // internally — no peakLevel needed here.
@@ -144,9 +144,9 @@ struct EnvADSR
 
     State state      = State::Idle;
     float currentLvl = 0.0f;
-    float Fs_        = 44100.0f;
+    int Fs_        = 44100.0f;
 
-    void setSampleRate(float Fs) { Fs_ = Fs; }
+    void setSampleRate(int Fs) { Fs_ = Fs; }
 
     void noteOn();
     void noteOff();
@@ -275,7 +275,7 @@ class FMVoice
 public:
     FMVoice() = default;
 
-    void setSampleRate(float Fs);
+    void setSampleRate(int Fs);
     void setPatch(const FMPatch& patch);
 
     void noteOn (float freqHz, float velocity);  // velocity [0, 1]
@@ -306,7 +306,7 @@ private:
 
     float fundamentalHz_ = 440.0f;
     float velocity_      = 1.0f;
-    float Fs_            = 44100.0f;
+    int Fs_            = 44100.0f;
 
     float computeOperatorOutput(int opIdx, float phaseModulation);
     //float semitonesToRatio(float semitones) const;
@@ -360,7 +360,7 @@ public:
     FMEngine() = default;
 
     // Call before any audio processing
-    void setSampleRate(float Fs);
+    void setSampleRate(int Fs);
 
     // Load a patch into all voices
     void loadPatch(const FMPatch& patch);
@@ -386,7 +386,7 @@ private:
     std::array<FMVoice, kNumVoices> voices_;
     VoiceAllocator                  allocator_;
     FMPatch                         patch_;
-    float                           Fs_ = 44100.0f;
+    int                           Fs_ = 44100;
 
     // Mild stereo spread: returns pan L [-1, 1] R for a given voice index
     //float voicePan(int voiceIdx) const;

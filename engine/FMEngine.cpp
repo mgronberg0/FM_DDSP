@@ -250,7 +250,7 @@ void FMVoice::processBlock(float* buf, int numSamples)
     }
 }
 
-void FMVoice::setSampleRate(float Fs)
+void FMVoice::setSampleRate(int Fs)
 {
     Fs_ = Fs;
     for (int i = 0; i< kNumOperators; i++){
@@ -359,7 +359,7 @@ void VoiceAllocator::setInactive(int voiceIdx)
     }
 }
 
-void FMEngine::setSampleRate(float Fs)
+void FMEngine::setSampleRate(int Fs)
 {
     Fs_ = Fs;
     for (int i = 0; i < kNumVoices; i++){
