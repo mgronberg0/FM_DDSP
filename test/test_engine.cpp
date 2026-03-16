@@ -5,6 +5,13 @@
 
 static constexpr uint16_t bufferSize = 128;
 
+struct MidiEvent
+{
+    uint32_t sampleTime; // when, in samples, this event takes place
+    int midiNote;
+    int velocity;  // 0 means note off, anything else is note on
+}
+
 void writeWavHeader(FILE* file, uint32_t sampleRate, uint32_t numSamples, uint16_t numChannels)
 {
     uint32_t fileSize      = (numSamples * 2 * numChannels) + 36;
@@ -39,11 +46,53 @@ void convertFloatBufferToInt16(float *bufferFloat, int16_t *bufferInt, uint32_t 
     }
 }
 
+void render
+
+int algoTest(FMEngine& engine, uint32_t Fs, const char* outFilePath){
+    int numAlgos = 8;
+    float noteLengthSec = 0.5f;
+    float renderLengthSec = 1.0f;
+    float audioLengthSec = numAlgos * renderLengthSec;
+    int noteNum = 41;
+
+    uint32_t noteLengthSamp = uint32_t(noteLengthSec * Fs);
+    uint32_t renderLengthSamp = uint32_t(renderLengthSec * Fs);
+    uint32_t audioLengthSamp = uint32_t(renderLengthSec*Fs);
+    uint32_t samplesThisBlock = 0;
+
+    float bufferFloat[bufferSize];
+    int16_t bufferInt[bufferSize];
+
+    FMPatch patch = engine.currentPatch();
+
+    // Create audio file
+    FILE* outFile = fopen(outFilePath, "wb");
+    if (outFile == nullptr){
+        printf("Failed to open output file\n");
+        return 1;
+    }
+    writeWavHeader(outFile, Fs, audioLengthSamp, 1);
+
+    bool noteStopped = false;
+    for(int i = 0; i<numAlgos; i++){
+        patch.algorithmIndex = i;
+        engine.loadPatch(patch);
+        engine.noteOn(noteNum, 60);
+        noteStopped = false;
+        
+    }
+    return 0;
+}
+
+void allocatorTest(FMEngine& engine, uint32_t Fs, const char* outFilePath){
+
+}
+
 int main()
 {
     uint32_t Fs = 44100;
     uint16_t numChan = 1;
-    uint16_t noteNum = 57;
+    uint16_t noteNum = 41;
     float noteLengthSec = 2.0f;
     uint32_t noteLengthSamp = uint32_t(noteLengthSec * Fs);
     float audioLengthSec = 5.0f;
@@ -59,21 +108,26 @@ int main()
     FMPatch patch;
     patch.algorithmIndex= 3;
 
-    patch.ops[0].ratio = 1;
-    patch.ops[0].level = 0.0f;
-    patch.ops[0].env.decayMs = 500.0f;
+    patch.algorithmIndex = 4;  // (op0+op1+op2)→op3★
+    patch.ops[0].ratio = 1.0f;
+    patch.ops[0].level = 1.0f;
+    patch.ops[0].env.decayMs = 600.0f;
     patch.ops[0].env.endLevel = 0.1f;
-
-    patch.ops[1].ratio = 3;
-    patch.ops[1].level = 0.0f;
-    patch.ops[1].env.decayMs = 1000.0f;
-    patch.ops[1].env.endLevel = 0.3f;
-
-    patch.ops[2].level = 0.9f;
-    patch.ops[2].ratio = 2.0f;
-    patch.ops[2].env.decayMs = 2000.f;
+    patch.ops[0].feedback = 0.70f;
+    patch.ops[1].ratio = 2.0f;
+    patch.ops[1].level = 1.0f;
+    patch.ops[1].env.decayMs = 500.0f;
+    patch.ops[1].env.endLevel = 0.0f;
+    patch.ops[2].ratio = 3.0f;
+    patch.ops[2].level = 1.0f;
+    patch.ops[2].env.decayMs = 600.0f;
     patch.ops[2].env.endLevel = 0.0f;
+    patch.ops[3].ratio = 1.0f;
     patch.ops[3].level = 1.0f;
+    patch.ampEnv.attackMs = 2.0f;
+    patch.ampEnv.decayMs = 200.0f;
+    patch.ampEnv.sustainLvl = 0.7f;
+    patch.ampEnv.releaseMs = 100.0f;
 
     patch.ampEnv.decayMs = 300.0f;
     patch.ampEnv.releaseMs = 3000.0f;

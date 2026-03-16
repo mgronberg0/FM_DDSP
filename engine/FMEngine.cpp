@@ -200,7 +200,7 @@ float FMVoice::processSample()
     float opPhaseMod[kNumOperators] = {};
     float outputSample = 0.0f;
     // Compute op0 feedback (hardcoded to be the feedback op)
-    opPhaseMod[0] = ops_[0].feedback*((feedbackBuf_[0]+feedbackBuf_[1])/2.0f);
+    opPhaseMod[0] = ops_[0].feedback*((feedbackBuf_[0]+feedbackBuf_[1])/2.0f)*kTwoPi;
 
     int carrierCount = 0;
     for (int opIdx = 0; opIdx<kNumOperators; opIdx++)
