@@ -1,0 +1,23 @@
+import torch
+import torchaudio
+import numpy as np
+
+def multiscale_stft_loss(predicted, target, fft_sizes=[2048]):
+    total_loss = 0.0
+    for size in fft_sizes:
+        pred_mag = torch.stft(predicted, 
+                               n_fft=size, 
+                               hop_length = int(size/4), 
+                               window = torch.hann_window(size),
+                               return_complex=True).abs()
+        targ_mag = torch.stft(target, 
+                               n_fft=size, 
+                               hop_length = int(size/4), 
+                               window = torch.hann_window(size),
+                               return_complex=True).abs()
+        l1_loss_log = torch.nn.functional.l1_loss(torch.log1p(pred_mag), 
+                                                  torch.log1p(targ_mag))
+        l1_loss_lin = torch.nn.functional.l1_loss(pred_mag, 
+                                                  targ_mag)
+        total_loss += l1_loss_log + l1_loss_lin
+    return total_loss / len(fft_sizes)
