@@ -22,6 +22,17 @@ def operator(freq, Fs, duration, level, modulation=None):
         modulation = torch.zeros_like(self_phase)
     return apply_phase_mod(self_phase,modulation) * level
 
+def make_mod_matrix(values):
+    mod_matrix = torch.zeros(4,4)
+    mod_matrix[0][0] = values[0]
+    mod_matrix[1][0] = values[1]
+    mod_matrix[2][0] = values[2]
+    mod_matrix[2][1] = values[3]
+    mod_matrix[3][0] = values[4]
+    mod_matrix[3][1] = values[5]
+    mod_matrix[3][2] = values[6]
+    return mod_matrix
+
 def fm_renderer(f0, ratios, levels, mod_matrix, carrier_weights, Fs, duration):
     num_samples = int(Fs * duration)
     num_ops = 4
