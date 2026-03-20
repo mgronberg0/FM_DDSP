@@ -5,7 +5,7 @@ import torch.nn.functional as F
 class FMEncoder(nn.Module):
     def __init__(self, n_mels=256, n_channels=1):
         super().__init__()
-        self.fc1 = nn.Linear(2049, 512)
+        self.fc1 = nn.Linear(256, 512)
         self.fc2 = nn.Linear(512, 256)
         self.fc3 = nn.Linear(256, 128)
         self.levels_head = nn.Linear(128, 4)
