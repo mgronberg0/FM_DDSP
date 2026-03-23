@@ -2,6 +2,7 @@ import torch
 import torchaudio
 import numpy as np
 import sys
+import os
 import random
 sys.path.append('..')
 from fm_ddsp import fm_renderer, make_mod_matrix
@@ -99,14 +100,20 @@ class FMDataset(torch.utils.data.Dataset):
         for i in range(self.n_examples):
             if i%1000 == 0 or i==self.n_examples-1:
                 print(f"Generating example {i+1}/{self.n_examples}")
+            # Midi Note Ranges
             midi_note = random.randint(36, 72)
             f0 = 440.0 * 2 ** ((midi_note - 69)/12.0)
+            # Algorithm Ranges
             alg = random.choice(ALGORITHMS)
+            # Mod Matrix, Carrier wieghts ranges
             mod_values = torch.rand(7) * torch.tensor(alg['mod_mask'], dtype=torch.float32)
             carrier_weights = torch.rand(4) * torch.tensor(alg['carrier_mask'], dtype=torch.float32)
+            # Ratio and operator level ranges
             ratios = torch.tensor([random.choice(ratio_choices) for _ in range(4)])
             levels = torch.rand(4) * 0.9 + 0.1
+            # form into mod matrix
             mod_matrix = make_mod_matrix(mod_values)
+            # create audio
             with torch.no_grad():
                 audio = fm_renderer(f0, ratios, levels, mod_matrix, carrier_weights, self.Fs, self.duration)
             mel_spec = self.mel_transform(audio)
