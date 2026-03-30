@@ -6,32 +6,16 @@ import numpy as np
 import sys
 import os
 import random
+sys.path.append("..")
+import fm_ddsp
 
 parser = argparse.ArgumentParser(description='Generates FM synthesis audio, parameter, and spectrograph files for use as training data')
-parser.add_argument('n_examples', type=int, default=100000)
+parser.add_argument('--n_examples', type=int, default=100000)
 parser.add_argument('--save_dir', type=str, default='./data/synthetics')
 parser.add_argument('--Fs', type=int, default = 16000)
 parser.add_argument('--duration', type=float, default= 1.0)
+parser.add_argument('--overwrite', type-bool, default=True)
 parser.add_argument('--seed', type = int, default = 217)
-
-
-
-def generate_dataset(n_examples, sav_dir, Fs, duration, seed)
-    # create save dir
-    # loop over n_examples
-        # create parameters for FM synthesis
-        # render audio
-        # compute spectrogram
-        # save spec_{}.pt
-        # save params_{}.json
-    # write manifest
-
-    pass
-
-if __name__ == '__main__':
-    args = parser.parse_args()
-    generate_dataset(args)
-    
 
 # Agorithms based on digitone's algos https://support.elektron.se/support/solutions/articles/43000566579-algorithms
 # mod_mask = [mm[0][0], mm[1][0], mm[2][0], mm[2][1], mm[3][0], mm[3][1], mm[3][2]]
@@ -94,3 +78,90 @@ ALGORITHMS = [
         'carrier_mask': [1, 0, 1, 1]
     },
 ]
+
+def generate_dataset(args):
+    # set seed
+    random.seed(args.seed)
+    torch.manual_seed(args.seed)
+    # create save dir
+    os.makedirs(args.save_dir, exist_ok=True)
+    # make mel transform object
+    mel_transform = torchaudio.transforms.MelSpectrogram(
+        sample_rate = args.Fs,
+        n_fft = 4096,
+        n_mels = 256,
+        hop_length = 4096//4
+    )
+    # create manifest data
+    manifest_data = []
+    manifest_path = os.path.join(args.save_dir,'manifest.json')
+    if os.path.exists(manifest_path) and not args.overwrite:
+        print("Dataset already exists. Use --overwrite to regen")
+        exit()
+    # loop over n_examples
+    for i in range(args.n_examples):
+        # create parameters for FM synthesis
+        parameters = create_parameters()
+        mod_matrix = fm_ddsp.make_mod_matrix(parameters.mod_values)
+        # render audio
+        with torch.no_grad():
+            audio = fm_renderer(
+                parameters['f0'], 
+                parameters['ratios'], 
+                parameters['levels'], 
+                mod_matrix, 
+                parameters['carrier_weights'], 
+                args.Fs, args.duration)
+        # compute spectrogram
+        mel_spec = mel_transform(audio)
+        # save spec_{}.pt
+        spec_file_path = os.path.join(args.save_dir,f'spec_{i:08d}.pt')
+        torch.save(mel_spec, spec_file_path)
+        # save params_{}.json
+        params_file_path = os.path.join(args.save_dir,f'params_{i:08d}.json')
+        parameters_dict = {
+            'f0': parameters['f0'],
+            'algorithm': parameters['algorithm'],
+            'mod_values': parameters['mod_values'].tolist(),
+            'ratios': parameters['ratios'].tolist(),
+            'levels': parameters['levels'].tolist(),
+            'carrier_weights': parameters['carrier_weights'].tolist()
+        }
+        with open(params_file_path, 'w') as f:
+            json.dump(parameters, f, indent=2)
+        manifest_data.append({'index':i,
+                              'parameter_file':params_file_path,
+                              'spectrogram_file':spec_file_path,
+                              parameters
+                             })    
+    with open(manifest_path, 'w') as f:
+        json.dump(manifest_data, f, indent=2)
+            
+
+def create_parameters():
+    ratio_choices = [0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]
+        # for i in range(self.n_examples):
+        #     if i%1000 == 0 or i==self.n_examples-1:
+        #         print(f"Generating example {i+1}/{self.n_examples}")
+    midi_note = random.randint(36, 72)
+    f0 = 440.0 * 2 ** ((midi_note - 69)/12.0)
+    alg = random.choice(ALGORITHMS)
+    mod_values = torch.rand(7) * torch.tensor(alg['mod_mask'], dtype=torch.float32)
+    carrier_weights = torch.rand(4) * torch.tensor(alg['carrier_mask'], dtype=torch.float32)
+    ratios = torch.tensor([random.choice(ratio_choices) for _ in range(4)])
+    levels = torch.rand(4) * 0.9 + 0.1
+    return {
+        'f0':f0,
+        'algorithm':alg['name'],
+        'mod_values':mod_values,
+        'ratios':ratios,
+        'levels':levels,
+        'carrier_weights':carrier_weights
+    }
+
+
+if __name__ == '__main__':
+    args = parser.parse_args()
+    generate_dataset(args)
+    
+
