@@ -111,7 +111,7 @@ def generate_dataset(args):
     for i in range(args.n_examples):
         # create parameters for FM synthesis
         if i % print_interval == 0 or i+1 == args.n_examples:
-            print(f"Generating example {i+1:0{num_digits}d}/{args.n_examples:0{num_digits}d}")
+            print(f"Generating example {i:0{num_digits}d}/{args.n_examples:0{num_digits}d}")
         parameters = create_parameters()
         mod_matrix = fm_ddsp.make_mod_matrix(parameters['mod_values'])
         # render audio
@@ -126,10 +126,12 @@ def generate_dataset(args):
         # compute spectrogram
         cqt_spec = compute_spectrogram_cqt(audio, cqt_transform)
         # save spec_{}.pt
-        spec_file_path = os.path.join(args.save_dir,f'spec_{i:0{num_digits}d}.pt')
+        spec_file = f'spec_{i:0{num_digits}d}.pt'
+        spec_file_path = os.path.join(args.save_dir,spec_file)
         torch.save(cqt_spec, spec_file_path)
         # save params_{}.json
-        params_file_path = os.path.join(args.save_dir,f'params_{i:0{num_digits}d}.json')
+        params_file = f'params_{i:0{num_digits}d}.json'
+        params_file_path = os.path.join(args.save_dir,params_file)
         parameters_dict = {
             'f0': parameters['f0'],
             'algorithm': parameters['algorithm'],
@@ -141,8 +143,8 @@ def generate_dataset(args):
         with open(params_file_path, 'w') as f:
             json.dump(parameters_dict, f, indent=2)
         manifest_data.append({'index':i,
-                              'parameter_file':params_file_path,
-                              'spectrogram_file':spec_file_path,
+                              'parameter_file':params_file,
+                              'spectrogram_file':spec_file,
                               'algorithm': parameters['algorithm']
                              })    
     with open(manifest_path, 'w') as f:
@@ -154,7 +156,8 @@ def generate_dataset(args):
             'n_bins': n_bins,
             'bins_per_ocatave':bins_per_octave
         }
-        json.dump(manifest_data, f, indent=2)
+        manifest['examples'] = manifest_data
+        json.dump(manifest, f, indent=2)
             
 
 def create_parameters():

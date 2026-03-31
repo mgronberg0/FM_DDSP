@@ -22,3 +22,12 @@ def multiscale_stft_loss(predicted, target, fft_sizes=[2048]):
                                                   targ_mag)
         total_loss += l1_loss_log + l1_loss_lin
     return total_loss / len(fft_sizes)
+
+def cqt_spectrogram_loss(pred_spec, target_spec):
+    l1_loss_log = torch.nn.functional.l1_loss(torch.log1p(pred_spec),
+                                              torch.log1p(target_spec))
+    l1_loss_lin = torch.nn.functional.l1_loss(pred_spec, 
+                                               target_spec)
+
+    total_loss = l1_loss_log + l1_loss_lin
+    return total_loss
