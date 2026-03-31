@@ -2,19 +2,22 @@ import argparse
 import json
 import torch
 import torchaudio
+import nnAudio as nn
 import numpy as np
 import sys
 import os
 import random
 sys.path.append("..")
 import fm_ddsp
+from encoder import compute_spectrogram_cqt
+from nnAudio.features import CQT2010v2
 
 parser = argparse.ArgumentParser(description='Generates FM synthesis audio, parameter, and spectrograph files for use as training data')
 parser.add_argument('--n_examples', type=int, default=100000)
 parser.add_argument('--save_dir', type=str, default='./data/synthetics')
 parser.add_argument('--Fs', type=int, default = 16000)
 parser.add_argument('--duration', type=float, default= 1.0)
-parser.add_argument('--overwrite', type-bool, default=True)
+parser.add_argument('--overwrite', type=bool, default=True)
 parser.add_argument('--seed', type = int, default = 217)
 
 # Agorithms based on digitone's algos https://support.elektron.se/support/solutions/articles/43000566579-algorithms
@@ -85,13 +88,18 @@ def generate_dataset(args):
     torch.manual_seed(args.seed)
     # create save dir
     os.makedirs(args.save_dir, exist_ok=True)
-    # make mel transform object
-    mel_transform = torchaudio.transforms.MelSpectrogram(
-        sample_rate = args.Fs,
-        n_fft = 4096,
-        n_mels = 256,
-        hop_length = 4096//4
-    )
+    # create transform
+    Fs = args.Fs
+    hop_size = 512
+    bins_per_octave = 32
+    n_octaves=7
+    n_bins = bins_per_octave*n_octaves
+    num_digits = int(np.log10(args.n_examples)+1) # number of digits in num examples
+
+    cqt_transform = CQT2010v2(sr = Fs,
+                              hop_length = hop_size,
+                              n_bins = n_bins,
+                              bins_per_octave = bins_per_octave)
     # create manifest data
     manifest_data = []
     manifest_path = os.path.join(args.save_dir,'manifest.json')
@@ -99,13 +107,16 @@ def generate_dataset(args):
         print("Dataset already exists. Use --overwrite to regen")
         exit()
     # loop over n_examples
+    print_interval = max(1, args.n_examples // 10)
     for i in range(args.n_examples):
         # create parameters for FM synthesis
+        if i % print_interval == 0 or i+1 == args.n_examples:
+            print(f"Generating example {i+1:0{num_digits}d}/{args.n_examples:0{num_digits}d}")
         parameters = create_parameters()
-        mod_matrix = fm_ddsp.make_mod_matrix(parameters.mod_values)
+        mod_matrix = fm_ddsp.make_mod_matrix(parameters['mod_values'])
         # render audio
         with torch.no_grad():
-            audio = fm_renderer(
+            audio = fm_ddsp.fm_renderer(
                 parameters['f0'], 
                 parameters['ratios'], 
                 parameters['levels'], 
@@ -113,12 +124,12 @@ def generate_dataset(args):
                 parameters['carrier_weights'], 
                 args.Fs, args.duration)
         # compute spectrogram
-        mel_spec = mel_transform(audio)
+        cqt_spec = compute_spectrogram_cqt(audio, cqt_transform)
         # save spec_{}.pt
-        spec_file_path = os.path.join(args.save_dir,f'spec_{i:08d}.pt')
-        torch.save(mel_spec, spec_file_path)
+        spec_file_path = os.path.join(args.save_dir,f'spec_{i:0{num_digits}d}.pt')
+        torch.save(cqt_spec, spec_file_path)
         # save params_{}.json
-        params_file_path = os.path.join(args.save_dir,f'params_{i:08d}.json')
+        params_file_path = os.path.join(args.save_dir,f'params_{i:0{num_digits}d}.json')
         parameters_dict = {
             'f0': parameters['f0'],
             'algorithm': parameters['algorithm'],
@@ -128,13 +139,21 @@ def generate_dataset(args):
             'carrier_weights': parameters['carrier_weights'].tolist()
         }
         with open(params_file_path, 'w') as f:
-            json.dump(parameters, f, indent=2)
+            json.dump(parameters_dict, f, indent=2)
         manifest_data.append({'index':i,
                               'parameter_file':params_file_path,
                               'spectrogram_file':spec_file_path,
-                              parameters
+                              'algorithm': parameters['algorithm']
                              })    
     with open(manifest_path, 'w') as f:
+        manifest = {
+            'n_examples': args.n_examples,
+            'Fs': args.Fs,
+            'duration': args.duration,
+            'seed': args.seed,
+            'n_bins': n_bins,
+            'bins_per_ocatave':bins_per_octave
+        }
         json.dump(manifest_data, f, indent=2)
             
 

@@ -2,14 +2,15 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchaudio.transforms as T
+from nnAudio.features import CQT2010v2
 
 class FMEncoder(nn.Module):
-    def __init__(self, n_mels=256 ): #n_channels=1
+    def __init__(self, n_bins=224 ): #n_bins comes from 7 octaves of 32 bins per octave
         super().__init__()
         num_features = 128
-        self.fc1 = nn.Linear(n_mels, 2*n_mels)
-        self.fc2 = nn.Linear(2*n_mels, n_mels)
-        self.fc3 = nn.Linear(n_mels, num_features)
+        self.fc1 = nn.Linear(n_bins, 2*n_bins)
+        self.fc2 = nn.Linear(2*n_bins, n_bins)
+        self.fc3 = nn.Linear(n_bins, num_features)
         self.levels_head = nn.Linear(num_features, 4)
         self.mod_values_head = nn.Linear(num_features, 7)
         self.ratios_head = nn.Linear(num_features,4)
@@ -48,7 +49,7 @@ class FMEncoder(nn.Module):
             'carrier_weights': carrier_weights
         }
 
-def compute_spectrogram(audio, Fs = 16000, n_fft = 4096, n_mels = 256):
+def compute_spectrogram_mel(audio, Fs = 16000, n_fft = 4096, n_mels = 256):
 
     mel_transform = T.MelSpectrogram(
         sample_rate = Fs,
@@ -59,7 +60,22 @@ def compute_spectrogram(audio, Fs = 16000, n_fft = 4096, n_mels = 256):
     spectrogram = mel_transform(audio.unsqueeze(0))
     spectrogram = torch.log1p(spectrogram)
     spectrogram = spectrogram.mean(dim=2)
-    print(spectrogram.shape)
 
     # output is expects [channels, n_mels]
     return spectrogram
+
+def compute_spectrogram_cqt(audio, cqt_transform):
+    # Fs = 16000, hop_size = 512, bins_per_octave = 32, n_octaves=7
+    # cqt_transform = CQT2010v2(sr = Fs,
+    #                           hop_length = hop_size,
+    #                           n_bins = bins_per_octave*n_octaves,
+    #                           bins_per_octave = bins_per_octave)
+    spec = cqt_transform(audio.unsqueeze(0))
+    spec = spec.abs()
+    spec = torch.log1p(spec)
+    spec = spec.mean(dim=2)
+    spec = spec.squeeze().numpy()
+    print(spec.shape)
+
+    # output is expects [n_bins]
+    return spec
