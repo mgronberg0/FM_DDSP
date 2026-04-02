@@ -74,8 +74,6 @@ def compute_spectrogram_cqt(audio, cqt_transform):
     spec = spec.abs()
     spec = torch.log1p(spec)
     spec = spec.mean(dim=2)
-    spec = spec.squeeze().numpy()
-    #print(spec.shape)
-
+    spec = spec.squeeze()
     # output is expects [n_bins]
     return spec

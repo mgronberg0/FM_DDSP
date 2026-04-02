@@ -1,5 +1,5 @@
 from dataset import FMDataset
-from encoder import FMEncoder
+from encoder import FMEncoder, compute_spectrogram_cqt
 from fm_ddsp import fm_renderer, make_mod_matrix
 from loss import cqt_spectrogram_loss
 
@@ -12,24 +12,84 @@ import numpy as np
 import sys
 import os
 import random
+import argparse
 
-# set up device
-device =  torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-# create dataset
-dataset = FMDataset(data_set_dir).to(device)
-# create dataloader
-loader = DataLoader(dataset, batch_size=32, shuffle=True, num_workers=4).to(device)
-# create encoder
-encoder = FMEncoder().to(device)
-# create optimizer
-optimizer = torch.optim.Adam(encoder.parameters(), lr=args.lr )
-# create cqt transform
-Fs = args.Fs
-hop_size = 512
-bins_per_octave = 32
-n_octaves=7
-n_bins = bins_per_octave*n_octaves
-cqt_transform = CQT2010v2(sr = Fs,
-                          hop_length = hop_size,
-                          n_bins = n_bins,
-                          bins_per_octave = bins_per_octave)
+parser = argparse.ArgumentParser(description = 'Trains existing dataset from generate_dataset')
+
+parser.add_argument('--data_dir',type=str)
+parser.add_argument('--Fs', type=int, default = 16000)
+parser.add_argument('--duration', type = float, default = 1.0)
+parser.add_argument('--lr', type=float, default = 0.0001)
+parser.add_argument('--n_epochs', type=int, default = 25)
+
+
+def train(args):
+    # set up device
+    device =  torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    # create dataset
+    dataset = FMDataset(save_dir = args.data_dir)
+    # create dataloader
+    dataloader = DataLoader(dataset, 
+                        batch_size=32, 
+                        shuffle=True, 
+                        num_workers=4)
+    # create encoder
+    encoder = FMEncoder(n_bins = 224).to(device)
+    # create optimizer
+    optimizer = torch.optim.Adam(encoder.parameters(), lr=args.lr )
+    # create cqt transform
+    Fs = args.Fs
+    duration = args.duration
+    hop_size = 512
+    bins_per_octave = 32
+    n_octaves=7
+    n_bins = bins_per_octave*n_octaves
+    cqt_transform = CQT2010v2(sr = Fs,
+                              hop_length = hop_size,
+                              n_bins = n_bins,
+                              bins_per_octave = bins_per_octave).to(device)
+
+    # create output dir for checkpoints
+    output_dir = os.path.join(args.data_dir,'output')
+    os.makedirs(output_dir, exist_ok=True)
+    
+    for epoch in range(args.n_epochs):
+        epoch_loss = 0.0
+        for batch in dataloader:
+            # get data from batch
+            params, spec = batch
+            
+            optimizer.zero_grad()
+            predicted = encoder(spec)
+            batch_size = spec.shape[0]
+            batch_loss = 0.0
+            for i in range(batch_size):
+                # create audio
+                audio_i = fm_renderer(
+                    params['f0'][i].item(),
+                    predicted['ratios'][i],
+                    predicted['levels'][i],
+                    make_mod_matrix(predicted['mod_values'][i]),
+                    predicted['carrier_weights'][i],
+                    Fs, duration)
+                pred_spec = compute_spectrogram_cqt(audio_i,cqt_transform)
+                batch_loss += cqt_spectrogram_loss(pred_spec, spec[i])
+            # calculate loss
+            loss = batch_loss / batch_size
+            loss.backward()
+            optimizer.step()
+        # calculate epoch loss
+        epoch_loss+=loss.item()
+        epoch_loss_avg = epoch_loss / len(dataloader)
+        print(f"Average epoch loss: {epoch_loss_avg}")
+        # Save checkpoint
+        torch.save(encoder.state_dict(), 
+                   os.path.join(output_dir, f'encoder_epoch_{epoch}.pt'))
+                
+                
+                
+            
+
+if __name__ == '__main__':
+    args = parser.parse_args()
+    train(args)

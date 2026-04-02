@@ -10,6 +10,7 @@ def make_phase(freq, Fs, duration):
     # returns the phase ramp tensor before sin is applied
     t = torch.linspace(0, duration, int(Fs*duration))
     return t * (2*np.pi) * freq
+    
 def apply_phase_mod(phase, modulation):
     # adds modulation to phase and applies sin, returns audio signal
     modulated_phase = phase+modulation
@@ -34,6 +35,7 @@ def make_mod_matrix(values):
     return mod_matrix
 
 def fm_renderer(f0, ratios, levels, mod_matrix, carrier_weights, Fs, duration):
+    print(f"Fs in fm_renderer: {Fs}")
     num_samples = int(Fs * duration)
     num_ops = 4
     # # apply mask to zero cyclic modulation

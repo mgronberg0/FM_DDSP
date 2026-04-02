@@ -4,9 +4,6 @@ import json
 import torch
 sys.path.append('..')
 
-
-
-
 class FMDataset(torch.utils.data.Dataset):
     def __init__(self, 
                  save_dir,

@@ -4,9 +4,6 @@ import json
 import torch
 sys.path.append('..')
 
-
-
-
 class FMDataset(torch.utils.data.Dataset):
     def __init__(self, 
                  save_dir,
@@ -36,6 +33,6 @@ class FMDataset(torch.utils.data.Dataset):
                 'carrier_weights': torch.tensor(parameters['carrier_weights'])
             }
         # load .pt spec file
-        spec = torch.load(spec_file, weights_only = False)
+        spec = torch.tensor(torch.load(spec_file, weights_only = False))
         return params, spec
     
