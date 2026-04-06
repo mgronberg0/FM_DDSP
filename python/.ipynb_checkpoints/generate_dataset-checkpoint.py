@@ -82,7 +82,9 @@ ALGORITHMS = [
     },
 ]
 
-def generate_dataset(args):
+def generate_dataset(args, param_fn = None):
+    if param_fn == None:
+        param_fn = create_parameters
     # set seed
     random.seed(args.seed)
     torch.manual_seed(args.seed)
@@ -112,7 +114,7 @@ def generate_dataset(args):
         # create parameters for FM synthesis
         if i % print_interval == 0 or i+1 == args.n_examples:
             print(f"Generating example {i:0{num_digits}d}/{args.n_examples:0{num_digits}d}")
-        parameters = create_parameters()
+        parameters = param_fn()
         mod_matrix = fm_ddsp.make_mod_matrix(parameters['mod_values'])
         # render audio
         with torch.no_grad():
