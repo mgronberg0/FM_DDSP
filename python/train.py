@@ -1,7 +1,7 @@
 from dataset import FMDataset
 from encoder import FMEncoder, compute_spectrogram_cqt
 from fm_ddsp import fm_renderer, make_mod_matrix
-from loss import cqt_spectrogram_loss
+from loss import cqt_spectrogram_loss_enhanced
 
 import torch
 from torch.utils.data import DataLoader
@@ -52,13 +52,14 @@ def train(args):
     # create output dir for checkpoints
     output_dir = os.path.join(args.data_dir,'output')
     os.makedirs(output_dir, exist_ok=True)
-    
+    # debug
+    initial_weight = encoder.fc1.weight.data.clone()
     for epoch in range(args.n_epochs):
         epoch_loss = 0.0
         for batch in dataloader:
             # get data from batch
             params, spec = batch
-            
+            spec = spec.float().to(device)
             optimizer.zero_grad()
             predicted = encoder(spec)
             batch_size = spec.shape[0]
@@ -73,15 +74,19 @@ def train(args):
                     predicted['carrier_weights'][i],
                     Fs, duration)
                 pred_spec = compute_spectrogram_cqt(audio_i,cqt_transform)
-                batch_loss += cqt_spectrogram_loss(pred_spec, spec[i])
+                batch_loss += cqt_spectrogram_loss_enhanced(pred_spec, spec[i])
             # calculate loss
             loss = batch_loss / batch_size
             loss.backward()
+            torch.nn.utils.clip_grad_norm_(encoder.parameters(), max_norm=1.0)
             optimizer.step()
-        # calculate epoch loss
-        epoch_loss+=loss.item()
+            # calculate epoch loss
+            epoch_loss+=loss.item()
         epoch_loss_avg = epoch_loss / len(dataloader)
         print(f"Average epoch loss: {epoch_loss_avg}")
+        weight_change = (encoder.fc1.weight.data - initial_weight).abs().mean()
+        print(f"Average weight change: {weight_change.item()}")
+        initial_weight = encoder.fc1.weight.data.clone()
         # Save checkpoint
         torch.save(encoder.state_dict(), 
                    os.path.join(output_dir, f'encoder_epoch_{epoch}.pt'))

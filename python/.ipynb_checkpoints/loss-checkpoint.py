@@ -31,3 +31,22 @@ def cqt_spectrogram_loss(pred_spec, target_spec):
 
     total_loss = l1_loss_log + l1_loss_lin
     return total_loss
+
+def cqt_spectrogram_loss_enhanced(predicted_spec, target_spec, verbose = False):
+    # bias spectrograms
+    pred_spec = (predicted_spec - predicted_spec.min()) + 1e-8
+    targ_spec = (target_spec - target_spec.min()) + 1e-8
+    # normalize spectrogram
+    pred_norm = pred_spec / (pred_spec.max() + 1e-8)
+    targ_norm = targ_spec / (targ_spec.max() + 1e-8)
+    
+    l1_loss_log = torch.nn.functional.l1_loss(torch.log1p(pred_norm),
+                                              torch.log1p(targ_norm))
+    # Consider spectral convergence
+    if verbose:
+        with torch.no_grad():
+            sc = torch.norm(targ_norm - pred_norm) / (torch.norm(targ_norm) +1e-8)
+            print(f"Spectral Convergence: {sc.item():4f}")
+
+    total_loss = l1_loss_log# + spectral_convergence
+    return total_loss

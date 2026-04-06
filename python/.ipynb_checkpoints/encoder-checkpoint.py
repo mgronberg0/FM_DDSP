@@ -39,7 +39,8 @@ class FMEncoder(nn.Module):
         levels = torch.sigmoid(self.levels_head(x))
         mod_values = torch.sigmoid(self.mod_values_head(x))
         ratios = F.softplus(self.ratios_head(x)) + 0.25
-        cw = self.carrier_weights_head(x)
+        ratios = torch.clamp(ratios, 0.25, 8.0)
+        cw = F.relu(self.carrier_weights_head(x))
         carrier_weights = cw / (cw.sum(dim=1, keepdim=True) + 1e-8)
 
         return {
@@ -72,6 +73,7 @@ def compute_spectrogram_cqt(audio, cqt_transform):
     #                           bins_per_octave = bins_per_octave)
     spec = cqt_transform(audio.unsqueeze(0))
     spec = spec.abs()
+    spec = torch.clamp(spec, min=0.0)
     spec = torch.log1p(spec)
     spec = spec.mean(dim=2)
     spec = spec.squeeze()

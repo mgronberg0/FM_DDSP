@@ -24,7 +24,7 @@ def operator(freq, Fs, duration, level, modulation=None):
     return apply_phase_mod(self_phase,modulation) * level
 
 def make_mod_matrix(values):
-    mod_matrix = torch.zeros(4,4)
+    mod_matrix = torch.zeros(4,4, device = values.device)
     mod_matrix[0][0] = values[0]
     mod_matrix[1][0] = values[1]
     mod_matrix[2][0] = values[2]
@@ -47,9 +47,10 @@ def fm_renderer(f0, ratios, levels, mod_matrix, carrier_weights, Fs, duration):
     # mask[3][2] = 1.0
     # mask[0][0] = 1.0 # op0 feedback only
     # mod_matrix = mod_matrix * mask
-    t = torch.linspace(0, duration, num_samples)
+    t = torch.linspace(0, duration, num_samples, device=ratios.device)
     freqs = f0 * ratios
-    phase = 2 * torch.pi * freqs.unsqueeze(1) * t.unsqueeze(0)
+    phase = torch.remainder(2 * torch.pi * freqs.unsqueeze(1) * t.unsqueeze(0),
+                            2* torch.pi)
     # compute raw operator signals
     raw = torch.sin(phase) * levels.unsqueeze(1)  # [4, num_samples]
     # compute feedback
