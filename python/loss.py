@@ -39,14 +39,13 @@ def cqt_spectrogram_loss_enhanced(predicted_spec, target_spec, verbose = False):
     # normalize spectrogram
     pred_norm = pred_spec / (pred_spec.max() + 1e-8)
     targ_norm = targ_spec / (targ_spec.max() + 1e-8)
-    
-    l1_loss_log = torch.nn.functional.l1_loss(torch.log1p(pred_norm),
-                                              torch.log1p(targ_norm))
-    # Consider spectral convergence
-    if verbose:
-        with torch.no_grad():
-            sc = torch.norm(targ_norm - pred_norm) / (torch.norm(targ_norm) +1e-8)
-            print(f"Spectral Convergence: {sc.item():4f}")
 
-    total_loss = l1_loss_log# + spectral_convergence
+    # bi-directional weighted loss - emphasise spectral convergence of harmonic peaks
+    targ_weights = targ_norm / (targ_norm.sum() + 1e-8)
+    targ_loss = (targ_weights * (torch.log1p(pred_norm) - torch.log1p(targ_norm)).abs()).sum()
+    pred_weights = pred_norm / (pred_norm.sum() + 1e-8)
+    pred_loss = (pred_weights * (torch.log1p(pred_norm) - torch.log1p(targ_norm)).abs()).sum()
+    
+
+    total_loss = targ_loss + pred_loss
     return total_loss
