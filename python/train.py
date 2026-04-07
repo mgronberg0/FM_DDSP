@@ -56,6 +56,7 @@ def train(args):
     initial_weight = encoder.fc1.weight.data.clone()
     for epoch in range(args.n_epochs):
         epoch_loss = 0.0
+        print(f"Epoch {epoch}/{args.n_epochs}:")
         for batch in dataloader:
             # get data from batch
             params, spec = batch

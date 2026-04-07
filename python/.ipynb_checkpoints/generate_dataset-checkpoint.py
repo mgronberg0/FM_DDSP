@@ -149,6 +149,7 @@ def generate_dataset(args, param_fn = None):
                               'spectrogram_file':spec_file,
                               'algorithm': parameters['algorithm']
                              })    
+    print("Finished Generating Examples")
     with open(manifest_path, 'w') as f:
         manifest = {
             'n_examples': args.n_examples,

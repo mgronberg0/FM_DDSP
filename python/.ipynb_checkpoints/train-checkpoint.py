@@ -56,10 +56,11 @@ def train(args):
     initial_weight = encoder.fc1.weight.data.clone()
     for epoch in range(args.n_epochs):
         epoch_loss = 0.0
+        print(f"Epoch {epoch}/{args.n_epochs}:")
         for batch in dataloader:
             # get data from batch
             params, spec = batch
-            
+            spec = spec.float().to(device)
             optimizer.zero_grad()
             predicted = encoder(spec)
             batch_size = spec.shape[0]
@@ -80,8 +81,8 @@ def train(args):
             loss.backward()
             torch.nn.utils.clip_grad_norm_(encoder.parameters(), max_norm=1.0)
             optimizer.step()
-        # calculate epoch loss
-        epoch_loss+=loss.item()
+            # calculate epoch loss
+            epoch_loss+=loss.item()
         epoch_loss_avg = epoch_loss / len(dataloader)
         print(f"Average epoch loss: {epoch_loss_avg}")
         weight_change = (encoder.fc1.weight.data - initial_weight).abs().mean()

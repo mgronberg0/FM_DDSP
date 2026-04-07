@@ -33,6 +33,6 @@ class FMDataset(torch.utils.data.Dataset):
                 'carrier_weights': torch.tensor(parameters['carrier_weights'])
             }
         # load .pt spec file
-        spec = torch.load(spec_file, weights_only = False).detach().clone
+        spec = torch.load(spec_file, weights_only = False).detach().clone()
         return params, spec
     
