@@ -62,7 +62,7 @@ def make_fundamental_weight_batched(n_bins, fundamental_bins, bins_per_octave,
     return freq_weights
 
 
-def cqt_spectrogram_loss_batched(pred_spec, target_spec, freq_weights=None, verbose=False):
+def cqt_spectrogram_loss_batched(pred_spec, target_spec, freq_weights=None, verbose=False, threshold = 0.05):
     """
     Bidirectional weighted CQT spectrogram loss operating on batches.
 
@@ -79,28 +79,27 @@ def cqt_spectrogram_loss_batched(pred_spec, target_spec, freq_weights=None, verb
     Returns:
         loss: scalar tensor
     """
-    # bias to ensure all values positive
-    pred_spec = (pred_spec - pred_spec.min(dim=1, keepdim=True).values) + 1e-8
-    targ_spec = (target_spec - target_spec.min(dim=1, keepdim=True).values) + 1e-8
-
-    # normalise each example independently
-    pred_norm = pred_spec / (pred_spec.max(dim=1, keepdim=True).values + 1e-8)
-    targ_norm = targ_spec / (targ_spec.max(dim=1, keepdim=True).values + 1e-8)
+    # normalise each example to the target
+    ref = target_spec.max(dim = 1, keepdim = True).values + 1e-8
+    pred_norm = pred_spec / ref
+    targ_norm = target_spec / ref
 
     # apply frequency weights if provided
     if freq_weights is not None:
         pred_norm = pred_norm * freq_weights
         targ_norm = targ_norm * freq_weights
-
+        
     # per-bin log magnitude error [batch, n_bins]
     log_error = (torch.log1p(pred_norm) - torch.log1p(targ_norm)).abs()
 
-    # target-weighted loss — emphasise target harmonic peaks
-    targ_weights = targ_norm / (targ_norm.sum(dim=1, keepdim=True) + 1e-8)
+    # target-weighted loss — emphasise target harmonic peaks and erase non-peaks via thresholding
+    targ_mask = (targ_norm > threshold).float()
+    targ_weights = targ_mask*(targ_norm / (targ_norm.sum(dim=1, keepdim=True) + 1e-8))
     targ_loss = (targ_weights * log_error).sum(dim=1).mean()
 
     # pred-weighted loss — punish spurious energy
-    pred_weights = pred_norm / (pred_norm.sum(dim=1, keepdim=True) + 1e-8)
+    pred_mask = (pred_norm > threshold).float()
+    pred_weights = pred_mask*(pred_norm / (pred_norm.sum(dim=1, keepdim=True) + 1e-8))
     pred_loss = (pred_weights * log_error).sum(dim=1, keepdim=False).mean()
 
     total_loss = targ_loss + pred_loss

@@ -9,8 +9,14 @@ class FMEncoder(nn.Module):
         super().__init__()
         num_features = 128
         self.fc1 = nn.Linear(n_bins, 2*n_bins)
+
+        
         self.fc2 = nn.Linear(2*n_bins, n_bins)
+
+        
         self.fc3 = nn.Linear(n_bins, num_features)
+
+        
         self.levels_head = nn.Linear(num_features, 4)
         self.mod_values_head = nn.Linear(num_features, 7)
         self.ratios_head = nn.Linear(num_features,4)
@@ -38,10 +44,8 @@ class FMEncoder(nn.Module):
         # pass through each output head with it's activation
         levels = torch.sigmoid(self.levels_head(x))
         mod_values = torch.sigmoid(self.mod_values_head(x))
-        ratios = F.softplus(self.ratios_head(x)) + 0.25
-        ratios = torch.clamp(ratios, 0.25, 8.0)
-        cw = F.relu(self.carrier_weights_head(x))
-        carrier_weights = cw / (cw.sum(dim=1, keepdim=True) + 1e-8)
+        ratios = F.sigmoid(self.ratios_head(x)) * 7.75 + 0.25
+        carrier_weights = torch.softmax(self.carrier_weights_head(x), dim=1)
 
         return {
             'levels': levels,

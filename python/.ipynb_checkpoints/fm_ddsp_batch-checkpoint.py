@@ -14,11 +14,11 @@ import numpy as np
 #   carrier_weights: [batch, 4]
 #   returns audio:   [batch, n_samples]
 #
-# Use make_mod_matrix_batched to construct mod_matrix from the encoder's
+# Use make_mod_matrix_batch to construct mod_matrix from the encoder's
 # mod_values output of shape [batch, 7].
 # ─────────────────────────────────────────────────────────────────────────────
 
-def make_mod_matrix_batched(values):
+def make_mod_matrix_batch(values):
     """
     Constructs a batched 4x4 modulation matrix from 7 learnable values.
 
@@ -46,7 +46,7 @@ def make_mod_matrix_batched(values):
     return mod_matrix
 
 
-def fm_renderer_batched(f0, ratios, levels, mod_matrix, carrier_weights, Fs, duration):
+def fm_renderer_batch(f0, ratios, levels, mod_matrix, carrier_weights, Fs, duration):
     """
     Batched differentiable 4-operator FM renderer.
 

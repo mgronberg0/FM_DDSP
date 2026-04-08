@@ -1,6 +1,6 @@
 from dataset import FMDataset
 from encoder import FMEncoder
-from fm_ddsp_batch import fm_renderer_batched, make_mod_matrix_batched
+from fm_ddsp_batch import fm_renderer_batch, make_mod_matrix_batch
 from loss_batch import (compute_spectrogram_cqt_batched, 
                         cqt_spectrogram_loss_batched,
                         make_fundamental_weight_batched)
@@ -47,9 +47,9 @@ def train_stage1(args):
 
     # create encoder + optimizer + scheduler
     encoder = FMEncoder(n_bins=224).to(device)
-    optimizer = torch.optim.Adam(encoder.parameters(), lr=args.lr)
+    optimizer = torch.optim.Adam(encoder.parameters(), lr=args.lr, weight_decay=1e-4)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, patience=3, factor=0.5, verbose=True
+        optimizer, patience=5, factor=0.5, verbose=True
     )
 
     # CQT transform
@@ -105,8 +105,8 @@ def train_stage1(args):
             predicted = encoder(spec)
 
             # batched FM render — no Python item loop
-            mod_matrices = make_mod_matrix_batched(predicted['mod_values'])
-            audio_batch = fm_renderer_batched(
+            mod_matrices = make_mod_matrix_batch(predicted['mod_values'])
+            audio_batch = fm_renderer_batch(
                 f0_batch,
                 predicted['ratios'],
                 predicted['levels'],
@@ -125,7 +125,10 @@ def train_stage1(args):
             pred_specs = compute_spectrogram_cqt_batched(audio_batch, cqt_transform)
 
             # batched loss with fundamental suppression
-            loss = cqt_spectrogram_loss_batched(pred_specs, spec, freq_weights)
+            spectral_loss = cqt_spectrogram_loss_batched(pred_specs, spec, freq_weights)
+            lambda_sparse = 0.001
+            sparsity_loss = predicted['levels'].sum(dim=1).mean() * lambda_sparse
+            loss = spectral_loss + sparsity_loss
 
             loss.backward()
             torch.nn.utils.clip_grad_norm_(encoder.parameters(), max_norm=0.5)
