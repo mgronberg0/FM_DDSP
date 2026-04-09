@@ -35,6 +35,39 @@ def make_fundamental_weight(n_bins, fundamental_bin, bins_per_octave,
     freq_weights = 1.0 - (1.0 - suppression) * gaussian
     return freq_weights
 
+def stage1_loss(pred_params, gt_params, 
+                pred_spec, gt_spec, 
+                device,
+                freq_weights,
+                lambda_direct,
+                lambda_sparse = 0.001):
+    # spectral loss
+    spectral_loss = cqt_spectrogram_loss_batched(pred_spec, gt_spec, freq_weights)
+    # direct supervision of parameters loss with per-example adaptive weighting based on spectral loss performance
+    ref = gt_spec.max(dim=1, keepdim=True).values + 1e-8
+    pred_norm = pred_spec / ref
+    targ_norm = gt_spec / ref
+    sc = torch.norm(targ_norm - pred_norm, dim=1) / (torch.norm(targ_norm, dim=1) + 1e-8)
+    adaptive_lambda = lambda_direct * sc.detach()
+
+    gt_levels = gt_params['levels'].float().to(device)
+    gt_ratios = gt_params['ratios'].float().to(device)
+    gt_cw = gt_params['carrier_weights'].float().to(device)
+    gt_mod_values = gt_params['mod_values'].float().to(device)
+    
+    level_supervision = (pred_params['levels']- gt_levels).abs().mean(dim=1) * 2
+    ratio_supervision = (pred_params['ratios']- gt_ratios).abs().mean(dim=1)
+    cw_supervision    = (pred_params['carrier_weights']- gt_cw).abs().mean(dim=1)
+    mod_supervision   = (pred_params['mod_values']- gt_mod_values).abs().mean(dim=1)
+    
+    supervision_loss = (adaptive_lambda * (level_supervision + ratio_supervision + cw_supervision + mod_supervision)).mean()
+    # try to enforce sparceness in contribution from operators 1 and 2
+    sparsity_loss = pred_params['levels'][:, :2].sum(dim=1).mean() * lambda_sparse
+    loss = spectral_loss + supervision_loss + sparsity_loss
+    return loss, spectral_loss, supervision_loss, sparsity_loss, adaptive_lambda.mean()
+    
+    
+
 def train_stage1_supervised(args):
     # set up device
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -48,14 +81,14 @@ def train_stage1_supervised(args):
                             num_workers=4)
 
     # choose an example to use as our per-epoch plot
-    fixed_spec = dataset[0][1].float().unsqueeze(0).to(device)
-    fixed_params = dataset[0][0]
+    fixed_spec = dataset[6][1].float().unsqueeze(0).to(device)
+    fixed_params = dataset[6][0]
 
     # create encoder + optimizer + scheduler
     encoder = FMEncoder(n_bins=224).to(device)
     optimizer = torch.optim.Adam(encoder.parameters(), lr=args.lr, weight_decay=1e-4)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, patience=5, factor=0.5, verbose=True
+        optimizer, patience=5, factor=0.5
     )
 
     # CQT transform
@@ -100,6 +133,7 @@ def train_stage1_supervised(args):
         epoch_loss = 0.0
         epoch_spectral_loss = 0.0
         epoch_sparsity_loss = 0.0
+        epoch_adaptive_lambda = 0.0
         print(f"Epoch {epoch}/{args.n_epochs}:")
         # epoch number influcenes supervised parameter losses
         supervision_fadeout_percent = 0.7 # once we're at 70% of our epochs, the supervisied losses go to zero
@@ -132,27 +166,14 @@ def train_stage1_supervised(args):
                 continue
 
             # batched CQT spectrogram
-            pred_specs = compute_spectrogram_cqt_batched(audio_batch, cqt_transform)
+            pred_spec = compute_spectrogram_cqt_batched(audio_batch, cqt_transform)
 
-            # batched loss with fundamental suppression
-            spectral_loss = cqt_spectrogram_loss_batched(pred_specs, spec, freq_weights)
-            # direct supervision based losses, coeffes calculated in epoch loop
-            
-            gt_levels = params['levels'].float().to(device)
-            gt_ratios = params['ratios'].float().to(device)
-            gt_carrier_weights = params['carrier_weights'].float().to(device)
-            gt_mod_values = params['mod_values'].float().to(device)
-            level_supervision = F.l1_loss(predicted['levels'], gt_levels) * 2
-            ratio_supervision = F.l1_loss(predicted['ratios'], gt_ratios)
-            # elect to put double impact on carrier weights
-            cw_supervision = F.l1_loss(predicted['carrier_weights'], gt_carrier_weights)
-            mod_supervision = F.l1_loss(predicted['mod_values'], gt_mod_values)
-
-            supervision_loss = lambda_direct * (level_supervision + ratio_supervision + cw_supervision + mod_supervision)
-            # try to enforce sparceness in contribution from operators 1 and 2
-            lambda_sparse = 0.001
-            sparsity_loss = predicted['levels'][:, :2].sum(dim=1).mean() * lambda_sparse
-            loss = spectral_loss + supervision_loss + sparsity_loss
+            loss, spectral_loss, supervision_loss, sparsity_loss, adaptive_lambda_mean = stage1_loss(predicted, params, 
+                pred_spec, spec, 
+                device,
+                freq_weights,
+                lambda_direct,
+                lambda_sparse = 0.001)
 
             loss.backward()
             torch.nn.utils.clip_grad_norm_(encoder.parameters(), max_norm=0.5)
@@ -161,6 +182,7 @@ def train_stage1_supervised(args):
             epoch_loss += loss.item()
             epoch_spectral_loss += spectral_loss.item()
             epoch_sparsity_loss += sparsity_loss.item()
+            epoch_adaptive_lambda += adaptive_lambda_mean.item()
         # end of batch loop
         epoch_loss_avg = epoch_loss / len(dataloader)
         print(f"Average epoch loss: {epoch_loss_avg}")
@@ -171,7 +193,11 @@ def train_stage1_supervised(args):
 
         spectral_loss_avg = epoch_spectral_loss / len(dataloader)
         scheduler.step(spectral_loss_avg)
+        sparsity_loss_avg = epoch_sparsity_loss / len(dataloader)
+        adaptive_lambda_avg = epoch_adaptive_lambda / len(dataloader)
         print(f"Spectral loss avg: {spectral_loss_avg}")
+        print(f"Sparsity_loss avg: {sparsity_loss_avg}")
+        print(f"Adaptive lambda avg: {adaptive_lambda_avg}")
         # plot results of epoch
         encoder.eval()
         with torch.no_grad():
