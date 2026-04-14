@@ -10,6 +10,8 @@ import random
 sys.path.append("..")
 import fm_ddsp
 from encoder import compute_spectrogram_cqt
+import FMEncoderChain
+import fm_chain
 from nnAudio.features import CQT2010v2
 
 parser = argparse.ArgumentParser(description='Generates FM synthesis audio, parameter, and spectrograph files for use as training data')
@@ -161,7 +163,80 @@ def generate_dataset(args, param_fn = None):
         }
         manifest['examples'] = manifest_data
         json.dump(manifest, f, indent=2)
-            
+
+def generate_dataset_chain(args, param_fn = None):
+    if param_fn is None:
+        param_fn = create_parameters_chain
+    # set seed
+    random.seed(args.seed)
+    torch.manual_seed(args.seed)
+    # create save dir
+    os.makedirs(args.save_dir, exist_ok=True)
+    # create transform
+    Fs = args.Fs
+    hop_size = 512
+    bins_per_octave = 32
+    n_octaves=7
+    n_bins = bins_per_octave*n_octaves
+    num_digits = int(np.log10(args.n_examples)+1) # number of digits in num examples
+
+    cqt_transform = CQT2010v2(sr = Fs,
+                              hop_length = hop_size,
+                              n_bins = n_bins,
+                              bins_per_octave = bins_per_octave)
+    # create manifest data
+    manifest_data = []
+    manifest_path = os.path.join(args.save_dir,'manifest.json')
+    if os.path.exists(manifest_path) and not args.overwrite:
+        print("Dataset already exists. Use --overwrite to regen")
+        exit()
+    # loop over n_examples
+    print_interval = max(1, args.n_examples // 10)
+    for i in range(args.n_examples):
+        # create parameters for FM synthesis
+        if i % print_interval == 0 or i == args.n_examples- 1:
+            print(f"Generating example {i:0{num_digits}d}/{args.n_examples:0{num_digits}d}")
+        parameters = param_fn()
+        mod_matrix = fm_ddsp.make_mod_matrix(parameters['mod_values'])
+        # render audio
+        with torch.no_grad():
+            audio = fm_chain.fm_renderer(
+                parameters['f0'], 
+                parameters['ratios'], 
+                parameters['levels'], 
+                args.Fs, args.duration)
+        # compute spectrogram
+        cqt_spec = compute_spectrogram_cqt(audio, cqt_transform)
+        # save spec_{}.pt
+        spec_file = f'spec_{i:0{num_digits}d}.pt'
+        spec_file_path = os.path.join(args.save_dir,spec_file)
+        torch.save(cqt_spec, spec_file_path)
+        # save params_{}.json
+        params_file = f'params_{i:0{num_digits}d}.json'
+        params_file_path = os.path.join(args.save_dir,params_file)
+        parameters_dict = {
+            'f0': parameters['f0'],
+            'ratios': parameters['ratios'].tolist(),
+            'levels': parameters['levels'].tolist(),
+        }
+        with open(params_file_path, 'w') as f:
+            json.dump(parameters_dict, f, indent=2)
+        manifest_data.append({'index':i,
+                              'parameter_file':params_file,
+                              'spectrogram_file':spec_file,
+                             })    
+    print("Finished Generating Examples")
+    with open(manifest_path, 'w') as f:
+        manifest = {
+            'n_examples': args.n_examples,
+            'Fs': args.Fs,
+            'duration': args.duration,
+            'seed': args.seed,
+            'n_bins': n_bins,
+            'bins_per_ocatave':bins_per_octave
+        }
+        manifest['examples'] = manifest_data
+        json.dump(manifest, f, indent=2)
 
 def create_parameters():
     ratio_choices = [0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]
@@ -183,7 +258,17 @@ def create_parameters():
         'levels':levels,
         'carrier_weights':carrier_weights
     }
-
+def create_parameters_chain():
+    ratio_choices = [ 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]
+    midi_note = 45 # A2, 110 hz #TODO: random.randint(36, 72)
+    f0 = 440.0 * 2 ** ((midi_note - 69)/12.0)
+    ratios = torch.tensor([random.choice(ratio_choices) for _ in range(2)])
+    levels = torch.rand(2) * 3.9 + 0.1
+    return {
+        'f0':f0,
+        'ratios':ratios,
+        'levels':levels,
+    }
 
 if __name__ == '__main__':
     args = parser.parse_args()
