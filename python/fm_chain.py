@@ -8,7 +8,7 @@ import numpy as np
 # Parameters:
 # f0, ratios, levels
 
-def fm_renderer_chain_batched(f0, ratios, levels, Fs, duration):
+def fm_renderer(f0, ratios, levels, Fs, duration):
     # f0: [batch]
     # ratios; [batch, 2] - only op0 and 0p1 get ratio controls, hold carrier constant
     # levels: [batch, 3]
@@ -29,8 +29,8 @@ def fm_renderer_chain_batched(f0, ratios, levels, Fs, duration):
     phase_op0 = 2 * torch.pi * f0_op0 * t # shape [batch, n_samples]
     op0_out = torch.sin(phase_op0) * levels[:, 0:1]
 
-    phase_op1 = 2 * torch.pi * f0_op1 * t * op0_out
-    op1_out = torch.sin(phase_op1) * levels[:, 0:1]
+    phase_op1 = 2 * torch.pi * f0_op1 * t + op0_out
+    op1_out = torch.sin(phase_op1) * levels[:, 1:2]
 
     # carrier
     phase_op2 = 2 * torch.pi * f0.unsqueeze(1) * t + op1_out

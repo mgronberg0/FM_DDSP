@@ -197,13 +197,13 @@ def generate_dataset_chain(args, param_fn = None):
         if i % print_interval == 0 or i == args.n_examples- 1:
             print(f"Generating example {i:0{num_digits}d}/{args.n_examples:0{num_digits}d}")
         parameters = param_fn()
-        mod_matrix = fm_ddsp.make_mod_matrix(parameters['mod_values'])
+
         # render audio
         with torch.no_grad():
             audio = fm_chain.fm_renderer(
-                parameters['f0'], 
-                parameters['ratios'], 
-                parameters['levels'], 
+                torch.tensor(parameters['f0']).float().unsqueeze(0), 
+                parameters['ratios'].unsqueeze(0), 
+                parameters['levels'].unsqueeze(0), 
                 args.Fs, args.duration)
         # compute spectrogram
         cqt_spec = compute_spectrogram_cqt(audio, cqt_transform)

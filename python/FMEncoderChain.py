@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-import torch.nn.funtional as F
+import torch.nn.functional as F
 import torchaudio.transforms as T
 from nnAudio.features import CQT2010v2
 
@@ -27,6 +27,6 @@ class FMEncoderChain(nn.Module):
         ratios = torch.sigmoid(self.ratios_head(x)) * 7.0 + 1.0
 
         # levels allow for [0.0, 4.0] to allow overmodulation
-        levels = torch.sigmoid(self.levels_head(x)) * 4.0 # TODO: explore alternatives
+        levels = torch.sigmoid(self.levels_head(x)) # TODO: explore alternatives
 
         return {'ratios': ratios, 'levels': levels}

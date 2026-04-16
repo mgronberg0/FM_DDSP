@@ -36,3 +36,4 @@ class FMDataset(torch.utils.data.Dataset):
         spec = torch.load(spec_file, weights_only = False).detach().clone()
         return params, spec
     
+    

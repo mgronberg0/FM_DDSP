@@ -200,10 +200,10 @@ def generate_dataset_chain(args, param_fn = None):
 
         # render audio
         with torch.no_grad():
-            audio = fm_chain.fm_chain_renderer_batched(
-                parameters['f0'], 
-                parameters['ratios'], 
-                parameters['levels'], 
+            audio = fm_chain.fm_renderer(
+                torch.tensor(parameters['f0']).float().unsqueeze(0), 
+                parameters['ratios'].unsqueeze(0), 
+                parameters['levels'].unsqueeze(0), 
                 args.Fs, args.duration)
         # compute spectrogram
         cqt_spec = compute_spectrogram_cqt(audio, cqt_transform)
@@ -263,7 +263,7 @@ def create_parameters_chain():
     midi_note = 45 # A2, 110 hz #TODO: random.randint(36, 72)
     f0 = 440.0 * 2 ** ((midi_note - 69)/12.0)
     ratios = torch.tensor([random.choice(ratio_choices) for _ in range(2)])
-    levels = torch.rand(2) * 3.9 + 0.1
+    levels = torch.tensor([random.uniform(0.0,1.0), random.uniform(0.1,1.0)])
     return {
         'f0':f0,
         'ratios':ratios,

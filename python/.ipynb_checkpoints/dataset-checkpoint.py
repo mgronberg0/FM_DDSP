@@ -26,11 +26,8 @@ class FMDataset(torch.utils.data.Dataset):
             parameters = json.load(f)
             params = {
                 'f0': parameters['f0'],
-                'algorithm': parameters['algorithm'],
-                'mod_values': torch.tensor(parameters['mod_values']),
                 'ratios': torch.tensor(parameters['ratios']),
                 'levels': torch.tensor(parameters['levels']),
-                'carrier_weights': torch.tensor(parameters['carrier_weights'])
             }
         # load .pt spec file
         spec = torch.load(spec_file, weights_only = False).detach().clone()
